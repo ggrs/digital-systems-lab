@@ -1,0 +1,173 @@
+/*
+ * EA871 - Projeto final
+ * Gustavo Graziosi Silva	RA: 169320
+ *
+ */
+
+#include "lcd.h"
+#include "delay.h"
+#include "uart.h"
+#include "derivative.h" /* include peripheral declarations */
+#define SET_BIT(reg, idx)	reg = (reg | (1 << idx))		// Macro que seta o bit idx do registrador reg
+#define prescaler 128
+
+static long CnV_inicial = 0;
+static long CnV_final = 0;
+static long overflow_counter = 0;
+static int flag = 0;
+static long clock = 20971520;
+
+void init_InputCapture (void) {
+
+	SET_BIT(SIM_SCGC5, 10);     // Habilita clock do PORTB
+	SET_BIT(SIM_SCGC6, 25);     // Habilita clock do TPM1
+	SET_BIT(SIM_SOPT2, 24);		// Seta o bit 24 de SIM_SOPT2 operar com o clock MCGFLLCLK
+	PORTB_PCR1 &= 0xFFFFF8FF;	// Zera bits de MUX de PTB1
+	// PTB1 - TPM1_CH1 - ALT3 - pino 1 do conector H7
+	SET_BIT(PORTB_PCR1, 8);
+	SET_BIT(PORTB_PCR1, 9);
+	SIM_SOPT2 &= 0xFFFEFFFF;
+	TPM1_CNT = 0; 				// Zera o contador do TPM
+	TPM1_SC = 0;
+	TPM1_C1SC = 0;
+	TPM1_SC = 0x4F;				// CPWMS = 0 (Center-aligned - Up counting mode); Prescaler = 128; CMOD = 01; TOIE = 1
+	TPM1_C1SC = 0x4C;			// Seta os bits 6 (CHIE), 2 e 3 (ELSA) - Capture on rising or falling edge
+	TPM1_MOD = 0x3333;
+
+	NVIC_IPR4 = 0;				
+	SET_BIT(NVIC_ISER, 18);		// Habilita interrupcao da PORTB
+	
+	return;
+	
+}
+
+void init_GPIO (void) {
+
+	SET_BIT(SIM_SCGC5, 13);		// Habilita clock do PORTE (System Clock Gating Control)
+	PORTE_PCR23 &= 0xFFFFF8FF;	// Zera os bits do MUX de PTE23
+	SET_BIT(PORTE_PCR23, 8);	// Configura PTE23 para GPIO
+	GPIOC_PDOR = 0;				// Garante nivel zero em todas as saídas do PORTE
+	SET_BIT(GPIOE_PDDR, 23);	// Configura o pino 23 do PORTE como saida
+
+	return;
+}
+
+void init_interrupt (void) {
+
+	SET_BIT(SIM_SCGC5, 9);
+	PORTA_PCR4 &= 0xFFFFF8FF;	// Zera bits de MUX de PTA4
+	PORTA_PCR5 &= 0xFFFFF8FF;	// Zera bits de MUX de PTA5
+    PORTA_PCR12 &= 0xFFFFF8FF;	// Zera bits de MUX de PTA12
+	// PTA4 - ALT 7 - MUX = 111
+    SET_BIT(PORTA_PCR4, 8);
+    SET_BIT(PORTA_PCR4, 9);
+    SET_BIT(PORTA_PCR4, 10);
+	// PTA5 - ALT 1 - MUX = 001
+    SET_BIT(PORTA_PCR5, 8);
+    // PTA12 - ALT 1 - MUX = 001
+    SET_BIT(PORTA_PCR12, 8);
+    // Configura o botao S3 para interrupcao na borda de subida
+    SET_BIT(PORTA_PCR12, 19);
+    SET_BIT(PORTA_PCR12, 16);
+	// Configura o botao S2 para interrupcao na borda de subida
+    SET_BIT(PORTA_PCR5, 19);
+    SET_BIT(PORTA_PCR5, 16);
+	SET_BIT(PORTA_PCR12, 24);	// Limpa eventual pedido de interrupcao que esteja pendente
+	SET_BIT(PORTA_PCR5, 24);	// Limpa eventual pedido de interrupcao que esteja pendente
+    SET_BIT(NVIC_IPR7, 23);     // Define prioridade da interrupcao
+    SET_BIT(NVIC_ISER, 30);     // Habilita reconhecimento de pedido de interrupcao do Botao S3 (PTA12)
+
+	return;
+}
+
+void FTM1_IRQHandler() {	// FTM1 - fault, overflow and channels interrupt
+
+	if (TPM1_SC & TPM_SC_TOF_MASK) {	// Verifica Timer Overflow flag
+		overflow_counter++;
+	} else if (TPM1_C1SC & TPM_CnSC_CHF_MASK) { 	// Verifica Channel Flag
+		CnV_inicial = CnV_final;
+		CnV_final = TPM1_C1V;
+		flag = 1;
+	}
+	TPM1_SC |= 0x80;
+	TPM1_C1SC |= 0x80;
+
+	return;
+
+}
+
+void NMI_Handler () {
+
+	char ESC = 0x1B;
+	char ENTER = 13;
+	char term_clear[5] = {ESC,'[','2','J'};
+	char term_pos_reset[4] = {ESC,'[','H'};
+	char term_cursor_down[5] = {ESC,'[',1,'B'};
+	char term_cursor_backward[6] = {ESC,'[','2','0','D'};
+	char insert_msg[] = "Insira caracteres: ";
+	char input[4];
+	int wait = 0;
+	int i = 0;
+	
+	puts_UART0(insert_msg);
+	
+	while(wait == 0) {
+		
+		input[i] = getchar_UART0();
+		
+		if (i == 4) {
+			wait = 1;
+			i = 0;
+		}
+		i++;
+	}
+	
+}
+
+int main(void) {
+
+	init_interrupt();
+	init_GPIO();
+	init_GPIO_LCD();
+	init_LCD();
+	clear_LCD();
+	init_UART0();
+	init_InputCapture();
+
+	double count;
+	double distancia = 0;
+	long vel_som = 34000;	// Velocidade do som em cm/s
+	char aux[6];
+	int temp;
+	double echo;
+
+    for(;;) {
+
+    	delay(100);
+    	SET_BIT(GPIOE_PTOR, 23);
+    	delay(30);
+    	SET_BIT(GPIOE_PTOR, 23);
+    	delay(100);
+    		
+    	if (flag == 1) {
+
+			count = overflow_counter*TPM1_MOD + (CnV_final - CnV_inicial);
+			count = count * prescaler;
+			overflow_counter = 0;
+			flag = 0;
+			echo = count/clock;
+			distancia = (echo*vel_som)/2;
+			temp = (int)distancia;
+			aux[0] = temp/100 + '0';
+			aux[1] = (temp/10)%10 + '0';
+			aux[2] = temp%10 + '0';
+			aux[3] = 'c';
+			aux[4] = 'm';
+			aux[5] = '\0';
+			puts_LCD(aux);
+			putcmd_LCD(0x02,50);
+		}
+    }
+	
+	return 0;
+}

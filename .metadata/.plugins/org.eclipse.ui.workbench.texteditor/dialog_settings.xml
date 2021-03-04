@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<section name="Workbench">
+	<section name="org.eclipse.ui.texteditor.FindReplaceDialog_dialogBounds">
+		<item value="257" key="DIALOG_WIDTH"/>
+		<item value="103" key="DIALOG_Y_ORIGIN"/>
+		<item value="1081" key="DIALOG_X_ORIGIN"/>
+		<item value="381" key="DIALOG_HEIGHT"/>
+		<item value="1|Segoe UI|9.0|0|WINDOWS|1|-12|0|0|0|400|0|0|0|1|0|0|0|0|Segoe UI" key="DIALOG_FONT_NAME"/>
+	</section>
+	<section name="org.eclipse.ui.texteditor.FindReplaceDialog">
+		<item value="true" key="wrap"/>
+		<item value="false" key="casesensitive"/>
+		<item value="false" key="isRegEx"/>
+		<item value="false" key="incremental"/>
+		<item value="false" key="wholeword"/>
+		<item value="" key="selection"/>
+		<list key="findhistory">
+			<item value="periodo"/>
+			<item value="temp"/>
+			<item value="Timer overflow"/>
+			<item value="Timer Overflow"/>
+			<item value="PORTA_IRQHandler"/>
+			<item value="PORTA_IRQ_Handler"/>
+			<item value="TPM interrupt"/>
+			<item value="TPM"/>
+		</list>
+		<list key="replacehistory">
+			<item value="BUFFER_SIZE"/>
+			<item value="sbc"/>
+			<item value="and"/>
+			<item value="orr"/>
+			<item value="add"/>
+			<item value="lsr"/>
+			<item value="sub"/>
+			<item value="mov"/>
+		</list>
+	</section>
+</section>
