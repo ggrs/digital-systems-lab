@@ -1,4 +1,4 @@
-# Digital Systems Laboratory experiments
+# Digital Systems Laboratory
 This is the repository for the final project of the Introduction to Digital Computer Systems Laboratory class.
 
 A digital ruler was built using the **HC-SR04** sensor togheter with the FRDM-KL25z microcontroller.
